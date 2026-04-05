@@ -1,21 +1,34 @@
 Ultralytics 智能视觉检测套件
+
+
 基于 YOLOv8 + ByteTrack 的实时智能检测系统集合，涵盖人流计数、区域入侵和人员滞留三大核心场景。
 
+
 📦 包含项目
-项目	功能	核心算法
-countDetection	客流双向计数	YOLOv8 + ByteTrack + 虚拟线交叉
-intrusionDetection	区域入侵检测	YOLOv8 + ByteTrack + 多边形区域判定
-loiteringDetection	人员滞留检测	YOLOv8 + IoU Tracker + 锚点透视补偿
+
+countDetection：客流双向计数-YOLOv8 + ByteTrack + 虚拟线交叉
+
+intrusionDetection：区域入侵检测-YOLOv8 + ByteTrack + 多边形区域判定
+
+loiteringDetection：人员滞留检测-YOLOv8 + IoU Tracker + 锚点透视补偿
+
 
 🚀 特性
+
 纯 ONNX 推理 - 支持 CPU/GPU，无需 PyTorch 运行时
+
 实时 Web 界面 - FastAPI + WebSocket/SSE 流式推帧
+
 可视化标注 - 前端 Canvas 交互式绘制检测区域
+
 数据导出 - 支持 CSV/JSON 格式日志导出
+
 透视补偿 - 多种锚点模式 + Y 轴偏移 + BEV 变换
+
 
 🛠 技术栈
 YOLOv8 (ONNX) | ByteTrack | OpenCV | FastAPI | WebSocket
+
 
 每个文件内附：项目依赖和需知
 
