@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人员滞留检测系统</title>
+<style>
+:root {
+  --bg: #0d0f14;
+  --panel: #13161e;
+  --panel2: #1a1d27;
+  --border: #252836;
+  --accent: #00c8ff;
+  --accent2: #ff3b5c;
+  --accent3: #00ff99;
+  --warn: #ffaa00;
+  --text: #e2e6f0;
+  --text2: #7a8099;
+  --text3: #4a5068;
+  --radius: 8px;
+  --font: 'Courier New', 'SF Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+
+/* ── LAYOUT ── */
+#root { display: flex; flex-direction: column; height: 100vh; }
+header {
+  height: 46px; min-height: 46px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  flex-shrink: 0;
+}
+header .logo { color: var(--accent); font-size: 15px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent3); box-shadow: 0 0 6px var(--accent3); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+header .status-bar { margin-left: auto; display: flex; gap: 16px; color: var(--text2); font-size: 11px; }
+header .status-bar span { display: flex; align-items: center; gap: 4px; }
+
+.body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── LEFT PANEL ── */
+#left {
+  width: 248px; min-width: 248px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+}
+#left::-webkit-scrollbar { width: 4px; }
+#left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.section { border-bottom: 1px solid var(--border); padding: 10px 12px; }
+.section-title {
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.section-title::before { content: '▸'; }
+
+/* upload buttons */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 7px 10px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--panel2); color: var(--text); cursor: pointer; font-family: var(--font);
+  font-size: 12px; transition: all .15s; margin-bottom: 6px;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+.btn.primary:hover { opacity: .85; }
+.btn.danger { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.btn.danger:hover { opacity: .85; }
+.btn.success { background: var(--accent3); color: #000; border-color: var(--accent3); font-weight: 700; }
+.btn.success:hover { opacity: .85; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* zone controls */
+.zone-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+.zone-row label { flex: 1; font-size: 11px; color: var(--text2); }
+.zone-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: 10px; background: var(--panel2); border: 1px solid var(--border);
+}
+
+/* sliders */
+.param-row { margin-bottom: 10px; }
+.param-row label { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--text2); font-size: 11px; }
+.param-row label span { color: var(--accent); font-weight: 700; }
+input[type=range] {
+  width: 100%; height: 4px; appearance: none; background: var(--panel2);
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  appearance: none; width: 12px; height: 12px; background: var(--accent);
+  border-radius: 50%; cursor: pointer;
+}
+
+/* toggles */
+.toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 4px; }
+.toggle-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); cursor: pointer; user-select: none; }
+.toggle-item input { width: 13px; height: 13px; accent-color: var(--accent); cursor: pointer; }
+
+/* alert section */
+.alert-box {
+  background: var(--panel2); border: 1px solid var(--accent2);
+  border-radius: 5px; padding: 8px; min-height: 40px;
+  font-size: 11px; color: var(--accent2); max-height: 80px; overflow-y: auto;
+}
+.alert-box .alert-item { padding: 2px 0; border-bottom: 1px solid #1e2030; }
+.alert-box .alert-item:last-child { border-bottom: none; }
+
+/* ── CENTER PANEL ── */
+#center {
+  flex: 1; display: flex; flex-direction: column;
+  background: var(--bg); overflow: hidden;
+}
+#video-area {
+  flex: 1; position: relative; background: #000; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; min-height: 0;
+}
+#video-canvas {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain; display: block;
+  cursor: crosshair;
+}
+/* drawing overlay */
+#draw-canvas {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+#draw-canvas.active { pointer-events: all; cursor: crosshair; }
+
+.video-hint {
+  position: absolute; color: var(--text3); font-size: 13px; text-align: center;
+  pointer-events: none;
+}
+
+/* detection table */
+#table-area {
+  height: 180px; min-height: 160px;
+  background: var(--panel); border-top: 1px solid var(--border);
+  overflow-y: auto; overflow-x: auto; flex-shrink: 0;
+}
+#table-area::-webkit-scrollbar { width: 4px; height: 4px; }
+#table-area::-webkit-scrollbar-thumb { background: var(--border); }
+#det-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+#det-table th {
+  background: var(--panel2); padding: 6px 8px; text-align: left;
+  color: var(--text3); font-weight: 400; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2;
+  white-space: nowrap;
+}
+#det-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; white-space: nowrap; }
+#det-table tr:hover td { background: var(--panel2); }
+#det-table .linger-row td { color: var(--accent2); }
+#det-table img { width: 36px; height: 36px; object-fit: cover; border-radius: 3px; border: 1px solid var(--border); }
+
+/* ── RIGHT PANEL ── */
+#right {
+  width: 220px; min-width: 200px;
+  background: var(--panel); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#right-title { padding: 10px 12px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#linger-gallery {
+  flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px;
+  display: flex; flex-direction: column; gap: 8px; min-height: 0;
+}
+#linger-gallery::-webkit-scrollbar { width: 3px; }
+#linger-gallery::-webkit-scrollbar-thumb { background: var(--border); }
+.linger-card {
+  background: var(--panel2); border: 1px solid var(--accent2);
+  border-radius: 5px; padding: 6px; animation: cardIn .3s ease;
+}
+@keyframes cardIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+.linger-card img { width: 100%; height: 80px; object-fit: cover; border-radius: 3px; margin-bottom: 5px; }
+.linger-card .card-info { font-size: 10px; color: var(--text2); line-height: 1.6; }
+.linger-card .card-id { color: var(--accent2); font-weight: 700; font-size: 12px; }
+
+#log-area {
+  height: 200px; min-height: 160px; flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+#log-title { padding: 6px 12px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent3); flex-shrink: 0; }
+#log-list { flex: 1; overflow-y: auto; padding: 4px 8px; font-size: 11px; }
+#log-list::-webkit-scrollbar { width: 3px; }
+#log-list::-webkit-scrollbar-thumb { background: var(--border); }
+.log-entry {
+  padding: 3px 0; border-bottom: 1px solid var(--border);
+  display: grid; grid-template-columns: 52px 44px 1fr; gap: 4px;
+  color: var(--text2); align-items: center; font-size: 10px;
+}
+.log-entry .lid { color: var(--accent2); font-weight: 700; }
+.log-entry .ldur { color: var(--warn); }
+.log-entry .lzone { color: var(--accent3); }
+
+/* misc */
+.tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+.tag.yes { background: rgba(255,59,92,.15); color: var(--accent2); border: 1px solid rgba(255,59,92,.3); }
+.tag.no  { background: rgba(0,200,255,.08); color: var(--accent); border: 1px solid rgba(0,200,255,.15); }
+
+/* progress bar */
+#progress-bar {
+  height: 3px; background: var(--panel2); flex-shrink: 0; position: relative;
+}
+#progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3));
+  width: 0%; transition: width .3s;
+}
+
+/* zone mgmt */
+#zone-list { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.zone-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 4px;
+  padding: 4px 8px; font-size: 11px;
+}
+.zone-entry .zname { }
+.zone-entry .zdel { color: var(--accent2); cursor: pointer; font-size: 12px; }
+.zone-entry .zdel:hover { opacity: .7; }
+
+/* file status */
+.file-status { font-size: 10px; color: var(--text3); margin-bottom: 4px; word-break: break-all; }
+.file-status.ok { color: var(--accent3); }
+.file-status.err { color: var(--accent2); }
+</style>
+</head>
+<body>
+<div id="root">
+  <!-- ── HEADER ── -->
+  <header>
+    <div class="dot"></div>
+    <div class="logo">人员滞留检测系统 · LINGER GUARD</div>
+    <div class="status-bar">
+      <span id="hdr-fps">FPS: --</span>
+      <span id="hdr-frame">帧: 0/0</span>
+      <span id="hdr-linger" style="color:var(--accent2)">滞留: 0</span>
+      <span id="hdr-state">待机</span>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- ── LEFT ── -->
+    <div id="left">
+
+      <!-- 1. 数据输入 -->
+      <div class="section">
+        <div class="section-title">数据输入</div>
+
+        <div class="file-status" id="video-status">未选择视频</div>
+        <button class="btn" onclick="document.getElementById('inp-video').click()">
+          ▶ 导入视频 (mp4/avi/flv…)
+        </button>
+        <input id="inp-video" type="file" accept=".mp4,.avi,.flv,.mov,.mkv,.ts,.wmv" style="display:none" onchange="uploadVideo(this)">
+
+        <div class="file-status" id="model-status">未选择模型</div>
+        <button class="btn" onclick="document.getElementById('inp-model').click()">
+          ◈ 导入 ONNX 模型
+        </button>
+        <input id="inp-model" type="file" accept=".onnx" style="display:none" onchange="uploadModel(this)">
+
+        <!-- zone controls -->
+        <div style="margin-top:8px;">
+          <div class="zone-row">
+            <label>绘制滞留区域</label>
+            <button class="btn" style="width:auto;padding:3px 10px;font-size:11px" onclick="startDrawZone()" id="btn-draw-zone">+ 新建区域</button>
+          </div>
+          <div id="zone-list"></div>
+        </div>
+      </div>
+
+      <!-- 2. 参数配置 -->
+      <div class="section">
+        <div class="section-title">参数配置</div>
+
+        <div class="param-row">
+          <label>置信度阈值 <span id="lbl-conf">0.40</span></label>
+          <input type="range" min="0.1" max="0.95" step="0.05" value="0.40" oninput="syncParam('conf_threshold',this,'lbl-conf',2)">
+        </div>
+        <div class="param-row">
+          <label>最小目标面积(px²) <span id="lbl-area">500</span></label>
+          <input type="range" min="100" max="5000" step="100" value="500" oninput="syncParam('min_area',this,'lbl-area',0)">
+        </div>
+        <div class="param-row">
+          <label>滞留判定时间(s) <span id="lbl-linger">30</span></label>
+          <input type="range" min="5" max="120" step="5" value="30" oninput="syncParam('linger_threshold',this,'lbl-linger',0)">
+        </div>
+        <div class="param-row">
+          <label>短暂丢失容忍(帧) <span id="lbl-tol">30</span></label>
+          <input type="range" min="5" max="90" step="5" value="30" oninput="syncParam('tolerance_frames',this,'lbl-tol',0)">
+        </div>
+        <div class="param-row">
+          <label>速度阈值(px/s, 0=关) <span id="lbl-speed">50</span></label>
+          <input type="range" min="0" max="200" step="10" value="50" oninput="syncParam('speed_threshold',this,'lbl-speed',0)">
+        </div>
+
+        <!-- ★ 透视补偿 -->
+        <div style="margin:8px 0 4px;font-size:10px;letter-spacing:1px;color:var(--warn);text-transform:uppercase">▸ 透视补偿</div>
+        <div style="font-size:10px;color:var(--text3);line-height:1.6;margin-bottom:8px;background:var(--panel2);border-radius:4px;padding:6px 8px;border-left:2px solid var(--warn)">
+          检测到的绿色小圆点是实际判断锚点（脚部）。<br>
+          <strong style="color:var(--accent3)">绘制区域时，把区域下边界对齐绿点所在的水平线</strong>，而不是视觉上看到的地面区域中间。
+        </div>
+
+        <div class="param-row">
+          <label style="flex-direction:column;gap:2px">
+            <span>锚点模式</span>
+          </label>
+          <select id="sel-anchor" onchange="sendParams()" style="width:100%;margin-top:4px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-family:var(--font);font-size:11px">
+            <option value="foot" selected>脚部底边中心（推荐）</option>
+            <option value="foot_inner">脚部内缩10%</option>
+            <option value="center">边界框中心</option>
+          </select>
+        </div>
+
+        <div class="param-row">
+          <label>区域整体下移(px) <span id="lbl-yoff">0</span></label>
+          <input type="range" min="-100" max="200" step="5" value="0" oninput="syncParam('zone_y_offset',this,'lbl-yoff',0)">
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">如果区域整体偏高，用此滑条整体下移补偿</div>
+        </div>
+
+        <label class="toggle-item" style="margin-bottom:4px">
+          <input type="checkbox" id="chk-anchor-hline" checked onchange="sendParams()"> 显示脚部水平辅助线
+        </label>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:6px">辅助线 = 区域底边应该画到的位置</div>
+      </div>
+
+      <!-- 3. 警告选项 -->
+      <div class="section">
+        <div class="section-title">报警提醒</div>
+        <label class="toggle-item" style="margin-bottom:6px">
+          <input type="checkbox" id="chk-alert" checked> 开启滞留文字提醒
+        </label>
+        <div class="alert-box" id="alert-box">暂无报警</div>
+      </div>
+
+      <!-- 4. 操作区 -->
+      <div class="section">
+        <div class="section-title">显示开关</div>
+        <div class="toggle-grid">
+          <label class="toggle-item"><input type="checkbox" id="sw-track-id" checked onchange="sendParams()"> ID</label>
+          <label class="toggle-item"><input type="checkbox" id="sw-class" checked onchange="sendParams()"> 类别</label>
+          <label class="toggle-item"><input type="checkbox" id="sw-conf" checked onchange="sendParams()"> 置信度</label>
+          <label class="toggle-item"><input type="checkbox" id="sw-trail" checked onchange="sendParams()"> 轨迹线</label>
+          <label class="toggle-item"><input type="checkbox" id="sw-anchor" checked onchange="sendParams()"> 锚点</label>
+          <label class="toggle-item"><input type="checkbox" id="sw-count" checked onchange="sendParams()"> 滞留总数</label>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">任务控制</div>
+        <button class="btn success" id="btn-start" onclick="startDetect()">▶ 开始检测</button>
+        <button class="btn danger" id="btn-stop" onclick="stopDetect()">■ 停止检测</button>
+        <button class="btn" id="btn-pause" onclick="pauseDetect()">⏸ 暂停 / 继续</button>
+        <button class="btn" onclick="saveScreenshot()">📷 保存截图</button>
+        <button class="btn" onclick="exportLog('csv')">⬇ 导出日志 CSV</button>
+        <button class="btn" onclick="exportLog('json')">⬇ 导出日志 JSON</button>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- ── CENTER ── -->
+    <div id="center">
+      <div id="video-area">
+        <img id="video-canvas" src="" alt="" style="display:none">
+        <canvas id="draw-canvas"></canvas>
+        <div class="video-hint" id="video-hint">
+          请先导入视频和模型<br>
+          <span style="font-size:11px;color:var(--text3)">支持 MP4 / AVI / FLV / MOV / MKV</span>
+        </div>
+      </div>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+      <div id="table-area">
+        <table id="det-table">
+          <thead>
+            <tr>
+              <th>缩略图</th><th>ID</th><th>置信度</th><th>类别</th>
+              <th>坐标 [x1,y1,x2,y2]</th><th>速度(px/s)</th>
+              <th>滞留?</th><th>区域</th><th>时长(s)</th>
+            </tr>
+          </thead>
+          <tbody id="det-tbody"></tbody>
+        </table>
+      </div>
+    </div><!-- /center -->
+
+    <!-- ── RIGHT ── -->
+    <div id="right">
+      <div id="right-title">⚠ 滞留人员图像</div>
+      <div id="linger-gallery"></div>
+      <div id="log-area">
+        <div id="log-title">滞留日志</div>
+        <div id="log-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+</div><!-- /root -->
+
+<script>
+// ── Config ──────────────────────────────────────────────────
+const API = '';   // same origin; change to 'http://localhost:8000' if serving separately
+
+// ── State ────────────────────────────────────────────────────
+let params = {
+  conf_threshold: 0.40, min_area: 500, linger_threshold: 30,
+  tolerance_frames: 30, speed_threshold: 50,
+  show_track_id: true, show_class: true, show_conf: true,
+  show_trail: true, show_anchor: true, show_linger_count: true,
+  anchor_mode: 'foot', zone_y_offset: 0, use_bev: false,
+  show_anchor_hline: true,
+};
+
+let zones = {};
+let nextZoneId = 1;
+let isDrawMode = false;
+let currentPoly = [];
+let bevMode = false;
+let bevPts = [];
+
+let sse = null;
+let lastFrameB64 = null;
+let totalFrames = 0;
+let _fpsFrames = 0, _lastFpsTime = Date.now();
+
+// ── Upload ───────────────────────────────────────────────────
+async function uploadVideo(inp) {
+  const file = inp.files[0]; if (!file) return;
+  setStatus('video-status', '上传中…', '');
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/api/upload/video`, {method:'POST', body:fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '上传失败');
+    setStatus('video-status', '✓ ' + file.name, 'ok');
+    totalFrames = d.video_info.total_frames;
+    document.getElementById('hdr-frame').textContent = `帧: 0/${totalFrames}`;
+    if (d.preview) showFrame(d.preview);
+  } catch(e) { setStatus('video-status', '✗ ' + e.message, 'err'); }
+}
+
+async function uploadModel(inp) {
+  const file = inp.files[0]; if (!file) return;
+  setStatus('model-status', '上传中…', '');
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/api/upload/model`, {method:'POST', body:fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '上传失败');
+    setStatus('model-status', '✓ ' + file.name, 'ok');
+  } catch(e) { setStatus('model-status', '✗ ' + e.message, 'err'); }
+}
+
+function setStatus(id, msg, cls) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'file-status' + (cls ? ' ' + cls : '');
+}
+
+// ── Params ───────────────────────────────────────────────────
+const _dt = {};
+function debounce(fn, ms) {
+  return function() {
+    clearTimeout(_dt[fn]);
+    _dt[fn] = setTimeout(fn, ms);
+  };
+}
+const debouncedSendParams = debounce(sendParams, 400);
+
+function syncParam(key, slider, lblId, dec) {
+  const v = parseFloat(slider.value);
+  params[key] = v;
+  document.getElementById(lblId).textContent = v.toFixed(dec);
+  debouncedSendParams();
+}
+
+async function sendParams() {
+  params.show_track_id       = document.getElementById('sw-track-id').checked;
+  params.show_class          = document.getElementById('sw-class').checked;
+  params.show_conf           = document.getElementById('sw-conf').checked;
+  params.show_trail          = document.getElementById('sw-trail').checked;
+  params.show_anchor         = document.getElementById('sw-anchor').checked;
+  params.show_linger_count   = document.getElementById('sw-count').checked;
+  params.anchor_mode         = document.getElementById('sel-anchor').value;
+  params.use_bev             = false;   // BEV disabled — not needed for standard cameras
+  const hlEl = document.getElementById('chk-anchor-hline');
+  params.show_anchor_hline   = hlEl ? hlEl.checked : true;
+  try {
+    await fetch(`${API}/api/params`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(params),
+    });
+  } catch(e) { console.warn('sendParams failed:', e); }
+}
+
+// ── Zone Drawing ─────────────────────────────────────────────
+function startDrawZone() {
+  const img = document.getElementById('video-canvas');
+  if (!img.src || img.style.display === 'none') {
+    alert('请先导入视频，预览显示后再绘制区域'); return;
+  }
+  isDrawMode = true;
+  currentPoly = [];
+  document.getElementById('draw-canvas').classList.add('active');
+  document.getElementById('btn-draw-zone').textContent = '✓ 完成区域 (或双击)';
+  document.getElementById('btn-draw-zone').onclick = finishDrawZone;
+  redrawOverlay();
+}
+
+function finishDrawZone() {
+  if (currentPoly.length < 3) { alert('至少需要3个点'); return; }
+  const id = nextZoneId++;
+  zones[id] = currentPoly.slice();
+  currentPoly = [];
+  isDrawMode = false;
+  document.getElementById('draw-canvas').classList.remove('active');
+  document.getElementById('btn-draw-zone').textContent = '+ 新建区域';
+  document.getElementById('btn-draw-zone').onclick = startDrawZone;
+  renderZoneList();
+  sendZones();
+  redrawOverlay();
+}
+
+function deleteZone(id) {
+  delete zones[id];
+  renderZoneList();
+  sendZones();
+  redrawOverlay();
+}
+
+function renderZoneList() {
+  const el = document.getElementById('zone-list');
+  el.innerHTML = '';
+  for (const [id, pts] of Object.entries(zones)) {
+    const div = document.createElement('div');
+    div.className = 'zone-entry';
+    div.innerHTML = `<span style="color:${zoneColor(id)}">Zone ${id} (${pts.length}pts)</span>
+                     <span class="zdel" onclick="deleteZone(${id})">✕</span>`;
+    el.appendChild(div);
+  }
+}
+
+const ZONE_CSS_COLORS = ['#00ffff','#00ff80','#ff8000','#8000ff','#00c8ff','#ff0080'];
+function zoneColor(id) { return ZONE_CSS_COLORS[(Number(id)-1) % ZONE_CSS_COLORS.length]; }
+
+async function sendZones() {
+  try {
+    await fetch(`${API}/api/zones`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({zones}),
+    });
+  } catch(e) { console.warn('sendZones failed:', e); }
+}
+
+// BEV removed — not needed for standard surveillance cameras
+function toggleBEV(on) { /* noop */ }
+
+// ── Canvas overlay ────────────────────────────────────────────
+const drawCanvas = document.getElementById('draw-canvas');
+const dCtx = drawCanvas.getContext('2d');
+
+function resizeDrawCanvas() {
+  const va = document.getElementById('video-area');
+  drawCanvas.width  = va.clientWidth;
+  drawCanvas.height = va.clientHeight;
+  redrawOverlay();
+}
+window.addEventListener('resize', resizeDrawCanvas);
+
+function imgToCanvasCoord(ix, iy) {
+  const img = document.getElementById('video-canvas');
+  const rect = img.getBoundingClientRect();
+  const vaRect = document.getElementById('video-area').getBoundingClientRect();
+  const scaleX = rect.width  / (img.naturalWidth  || 1);
+  const scaleY = rect.height / (img.naturalHeight || 1);
+  return [
+    rect.left - vaRect.left + ix * scaleX,
+    rect.top  - vaRect.top  + iy * scaleY,
+  ];
+}
+
+function canvasToImgCoord(cx, cy) {
+  const img = document.getElementById('video-canvas');
+  const rect = img.getBoundingClientRect();
+  const vaRect = document.getElementById('video-area').getBoundingClientRect();
+  const scaleX = (img.naturalWidth  || 1) / rect.width;
+  const scaleY = (img.naturalHeight || 1) / rect.height;
+  return [
+    Math.round((cx - (rect.left - vaRect.left)) * scaleX),
+    Math.round((cy - (rect.top  - vaRect.top))  * scaleY),
+  ];
+}
+
+drawCanvas.addEventListener('click', function(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const [ix, iy] = canvasToImgCoord(cx, cy);
+
+  // BEV mode
+  if (bevMode) {
+    bevPts.push([ix, iy]);
+    const statusEl = document.getElementById('bev-calib-status');
+    statusEl.textContent = `已选 ${bevPts.length}/4 个点` + (bevPts.length === 4 ? ' → 完成' : '');
+    redrawOverlay();
+    if (bevPts.length === 4) finishBEVCalib();
+    return;
+  }
+
+  // Zone draw mode
+  if (isDrawMode) {
+    currentPoly.push([ix, iy]);
+    redrawOverlay();
+  }
+});
+
+drawCanvas.addEventListener('dblclick', function(e) {
+  if (isDrawMode && currentPoly.length >= 3) {
+    e.preventDefault();
+    finishDrawZone();
+  }
+});
+
+function redrawOverlay() {
+  dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  const img = document.getElementById('video-canvas');
+  if (!img.src || img.style.display === 'none') return;
+
+  // BEV calibration points
+  if (bevPts.length > 0) {
+    const labels = ['左上','右上','右下','左下'];
+    bevPts.forEach((pt, i) => {
+      const [cx, cy] = imgToCanvasCoord(pt[0], pt[1]);
+      dCtx.beginPath(); dCtx.arc(cx, cy, 8, 0, Math.PI*2);
+      dCtx.fillStyle = '#00ffff'; dCtx.fill();
+      dCtx.fillStyle = '#000'; dCtx.font = 'bold 11px monospace';
+      dCtx.textAlign = 'center'; dCtx.textBaseline = 'middle';
+      dCtx.fillText(labels[i] || String(i+1), cx, cy);
+    });
+    if (bevPts.length > 1) {
+      dCtx.beginPath();
+      const [sx, sy] = imgToCanvasCoord(bevPts[0][0], bevPts[0][1]);
+      dCtx.moveTo(sx, sy);
+      for (let i=1; i<bevPts.length; i++) {
+        const [px, py] = imgToCanvasCoord(bevPts[i][0], bevPts[i][1]);
+        dCtx.lineTo(px, py);
+      }
+      if (bevPts.length === 4) dCtx.closePath();
+      dCtx.strokeStyle='#00ffff'; dCtx.lineWidth=1.5;
+      dCtx.setLineDash([4,3]); dCtx.stroke(); dCtx.setLineDash([]);
+    }
+  }
+
+  // Existing zones
+  for (const [id, pts] of Object.entries(zones)) {
+    if (pts.length < 2) continue;
+    const color = zoneColor(id);
+    dCtx.beginPath();
+    const [sx, sy] = imgToCanvasCoord(pts[0][0], pts[0][1]);
+    dCtx.moveTo(sx, sy);
+    for (let i=1; i<pts.length; i++) {
+      const [px, py] = imgToCanvasCoord(pts[i][0], pts[i][1]);
+      dCtx.lineTo(px, py);
+    }
+    dCtx.closePath();
+    dCtx.fillStyle = color + '33'; dCtx.fill();
+    dCtx.strokeStyle = color; dCtx.lineWidth = 2; dCtx.stroke();
+    const cx = pts.reduce((s,p)=>s+p[0],0)/pts.length;
+    const cy = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+    const [lx, ly] = imgToCanvasCoord(cx, cy);
+    dCtx.fillStyle = color; dCtx.font = 'bold 13px monospace';
+    dCtx.textAlign = 'center'; dCtx.textBaseline = 'middle';
+    dCtx.fillText(`Zone ${id}`, lx, ly);
+  }
+
+  // Current polygon being drawn
+  if (isDrawMode && currentPoly.length > 0) {
+    dCtx.beginPath();
+    const [sx, sy] = imgToCanvasCoord(currentPoly[0][0], currentPoly[0][1]);
+    dCtx.moveTo(sx, sy);
+    for (let i=1; i<currentPoly.length; i++) {
+      const [px, py] = imgToCanvasCoord(currentPoly[i][0], currentPoly[i][1]);
+      dCtx.lineTo(px, py);
+    }
+    dCtx.strokeStyle='#fff'; dCtx.lineWidth=1.5;
+    dCtx.setLineDash([5,4]); dCtx.stroke(); dCtx.setLineDash([]);
+    currentPoly.forEach(([px,py]) => {
+      const [cx,cy] = imgToCanvasCoord(px, py);
+      dCtx.beginPath(); dCtx.arc(cx,cy,4,0,Math.PI*2);
+      dCtx.fillStyle='#fff'; dCtx.fill();
+    });
+    // Horizontal guide line at last point — helps align zone bottom to foot level
+    const last = currentPoly[currentPoly.length-1];
+    const [, hly] = imgToCanvasCoord(last[0], last[1]);
+    dCtx.setLineDash([6,4]);
+    dCtx.strokeStyle='rgba(0,255,128,0.5)'; dCtx.lineWidth=1;
+    dCtx.beginPath(); dCtx.moveTo(0,hly); dCtx.lineTo(drawCanvas.width,hly);
+    dCtx.stroke(); dCtx.setLineDash([]);
+    dCtx.fillStyle='rgba(0,255,128,0.8)'; dCtx.font='11px monospace';
+    dCtx.textAlign='left'; dCtx.textBaseline='bottom';
+    dCtx.fillText('← 当前Y位置（对齐到人脚处）', 6, hly - 3);
+  }
+}
+
+// ── Video display ─────────────────────────────────────────────
+function showFrame(b64) {
+  const img = document.getElementById('video-canvas');
+  img.onload = function() {
+    document.getElementById('video-hint').style.display = 'none';
+    img.style.display = 'block';
+    resizeDrawCanvas();
+    // Do NOT call redrawOverlay here during detection — backend renders zones
+    if (!task_state_running) redrawOverlay();
+  };
+  img.src = 'data:image/jpeg;base64,' + b64;
+}
+let task_state_running = false;
+
+// ── Detect Controls ───────────────────────────────────────────
+async function startDetect() {
+  // Check prerequisites
+  const vStatus = document.getElementById('video-status').textContent;
+  const mStatus = document.getElementById('model-status').textContent;
+  if (!vStatus.startsWith('✓')) { alert('请先成功上传视频文件'); return; }
+  if (!mStatus.startsWith('✓')) { alert('请先成功上传 ONNX 模型'); return; }
+
+  // 1. Push current params & zones first
+  await sendParams();
+  await sendZones();
+
+  // 2. Connect SSE BEFORE starting (so we don't miss the first frame)
+  startSSE();
+
+  // 3. Start detect task on server
+  try {
+    const r = await fetch(`${API}/api/detect/start`, {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '启动失败');
+    task_state_running = true;
+    document.getElementById('hdr-state').textContent = '检测中';
+    document.getElementById('hdr-state').style.color = 'var(--accent3)';
+  } catch(e) {
+    if (sse) { sse.close(); sse = null; }
+    alert('启动失败: ' + e.message);
+  }
+}
+
+async function stopDetect() {
+  task_state_running = false;
+  await fetch(`${API}/api/detect/stop`, {method:'POST'});
+  document.getElementById('hdr-state').textContent = '已停止';
+  document.getElementById('hdr-state').style.color = 'var(--text2)';
+}
+
+async function pauseDetect() {
+  const r = await fetch(`${API}/api/detect/pause`, {method:'POST'});
+  const d = await r.json();
+  const paused = d.status === 'paused';
+  document.getElementById('hdr-state').textContent = paused ? '已暂停' : '检测中';
+  document.getElementById('btn-pause').textContent = paused ? '▶ 继续' : '⏸ 暂停 / 继续';
+}
+
+// ── SSE ──────────────────────────────────────────────────────
+function startSSE() {
+  if (sse) { sse.close(); sse = null; }
+  sse = new EventSource(`${API}/api/stream`);
+
+  sse.onopen = function() {
+    console.log('SSE connected');
+  };
+
+  sse.onmessage = function(e) {
+    try {
+      const data = JSON.parse(e.data);
+      if      (data.type === 'frame')   handleFrame(data);
+      else if (data.type === 'end')     handleEnd('播放完毕');
+      else if (data.type === 'stopped') handleEnd('已停止');
+      else if (data.type === 'error')   handleError(data.message);
+    } catch(err) { console.error('SSE parse error:', err); }
+  };
+
+  sse.onerror = function(e) {
+    console.warn('SSE error', e);
+    // Don't close — browser auto-reconnects EventSource
+    if (!task_state_running) {
+      document.getElementById('hdr-state').textContent = '连接中断';
+    }
+  };
+}
+
+function handleEnd(msg) {
+  task_state_running = false;
+  document.getElementById('hdr-state').textContent = msg;
+  document.getElementById('hdr-state').style.color = 'var(--text2)';
+  if (sse) { sse.close(); sse = null; }
+  redrawOverlay(); // restore zone overlay on final frame
+}
+
+function handleError(msg) {
+  task_state_running = false;
+  document.getElementById('hdr-state').textContent = '错误';
+  document.getElementById('hdr-state').style.color = 'var(--accent2)';
+  addAlertMsg('⚠ 推理错误: ' + msg);
+  if (sse) { sse.close(); sse = null; }
+}
+
+// ── Frame handling ────────────────────────────────────────────
+function handleFrame(data) {
+  // FPS counter
+  _fpsFrames++;
+  const now = Date.now();
+  if (now - _lastFpsTime >= 1000) {
+    document.getElementById('hdr-fps').textContent = `FPS: ${_fpsFrames}`;
+    _fpsFrames = 0; _lastFpsTime = now;
+  }
+
+  lastFrameB64 = data.frame_b64;
+  showFrame(data.frame_b64);
+
+  // Progress bar
+  const pct = totalFrames > 0 ? Math.min(100, data.frame_index / totalFrames * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('hdr-frame').textContent = `帧: ${data.frame_index}/${totalFrames}`;
+
+  // Detection table
+  updateTable(data.detections || []);
+
+  // Linger count header
+  const lingerNow = (data.detections || []).filter(d => d.is_lingering).length;
+  document.getElementById('hdr-linger').textContent = `滞留: ${lingerNow}`;
+
+  // ── 完整滞留事件（人已离开，duration 是真实最终时长）──
+  for (const alert of (data.linger_alerts || [])) {
+    addLingerCard(alert, true);
+    addLogEntry(alert, true);
+    if (document.getElementById('chk-alert').checked) {
+      addAlertMsg(
+        `✓ ID ${alert.track_id} 已离开 Zone ${alert.zone_id}  ` +
+        `进入:${alert.enter_time} 离开:${alert.leave_time}  ` +
+        `滞留时长: ${alert.duration}s`
+      );
+    }
+  }
+
+  // ── 实时预览事件（人还在区域内，时长仍在增长）──
+  for (const prev of (data.linger_previews || [])) {
+    addLingerCard(prev, false);
+    addLogEntry(prev, false);
+    if (document.getElementById('chk-alert').checked) {
+      addAlertMsg(`⚠ ID ${prev.track_id} 正在滞留 Zone ${prev.zone_id}（计时中…）`);
+    }
+  }
+}
+
+function updateTable(detections) {
+  const tbody = document.getElementById('det-tbody');
+  tbody.innerHTML = '';
+  for (const d of detections) {
+    const tr = document.createElement('tr');
+    if (d.is_lingering) tr.className = 'linger-row';
+    const bboxStr = d.bbox.map(v => Math.round(v)).join(', ');
+    tr.innerHTML = `
+      <td>${d.thumb_b64 ? `<img src="data:image/jpeg;base64,${d.thumb_b64}">` : '-'}</td>
+      <td style="color:var(--accent);font-weight:700">#${d.track_id}</td>
+      <td>${(d.confidence*100).toFixed(1)}%</td>
+      <td>${d.class_name}</td>
+      <td style="font-size:10px">[${bboxStr}]</td>
+      <td>${d.speed}</td>
+      <td><span class="tag ${d.is_lingering?'yes':'no'}">${d.is_lingering?'滞留':'正常'}</span></td>
+      <td>${d.zone_id != null ? `Zone ${d.zone_id}` : '-'}</td>
+      <td>${d.is_lingering ? d.linger_duration : '-'}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function addLingerCard(alert, isComplete) {
+  const gallery = document.getElementById('linger-gallery');
+  // complete events get a new card each time (track can re-enter)
+  // preview events reuse the card for the same track_id
+  const cardId = isComplete
+    ? `card-${alert.track_id}-${Date.now()}`
+    : `card-${alert.track_id}`;
+  let card = isComplete ? null : document.getElementById(cardId);
+  if (!card) {
+    card = document.createElement('div');
+    card.className = 'linger-card';
+    card.id = cardId;
+    gallery.prepend(card);
+  }
+  const borderColor = isComplete ? 'var(--accent3)' : 'var(--accent2)';
+  const badge = isComplete
+    ? `<span style="color:var(--accent3);font-size:10px">✓ 已离开</span>`
+    : `<span style="color:var(--accent2);font-size:10px;animation:blink 1s infinite">● 进行中</span>`;
+  const timeInfo = isComplete
+    ? `<div style="color:var(--text3);font-size:10px">${alert.enter_time} → ${alert.leave_time}</div>`
+    : `<div style="color:var(--text3);font-size:10px">${alert.time}</div>`;
+  card.style.borderColor = borderColor;
+  card.innerHTML = `
+    ${alert.thumb_b64 ? `<img src="data:image/jpeg;base64,${alert.thumb_b64}">` : ''}
+    <div class="card-info">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="card-id">ID #${alert.track_id}</span>${badge}
+      </div>
+      <div>Zone ${alert.zone_id}&nbsp;|&nbsp;<span style="color:var(--warn);font-weight:700">${alert.duration}s</span></div>
+      ${timeInfo}
+    </div>`;
+}
+
+function addLogEntry(alert, isComplete) {
+  const list = document.getElementById('log-list');
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  const statusIcon = isComplete ? '✓' : '…';
+  const durColor   = isComplete ? 'var(--accent3)' : 'var(--warn)';
+  // 完整事件显示进入/离开时间；预览只显示"进行中"
+  const timeStr = isComplete
+    ? `${alert.enter_time}→${alert.leave_time}`
+    : `进行中`;
+  div.innerHTML = `
+    <span class="lid" style="color:${isComplete?'var(--accent3)':'var(--accent2)'}">${statusIcon}#${alert.track_id}</span>
+    <span class="ldur" style="color:${durColor}">${alert.duration}s</span>
+    <span class="lzone" style="font-size:10px">Z${alert.zone_id} ${timeStr}</span>`;
+  list.prepend(div);
+  while (list.children.length > 200) list.lastChild.remove();
+}
+
+function addAlertMsg(msg) {
+  const box = document.getElementById('alert-box');
+  if (box.textContent.trim() === '暂无报警') box.innerHTML = '';
+  const item = document.createElement('div');
+  item.className = 'alert-item';
+  item.textContent = msg;
+  box.prepend(item);
+  while (box.children.length > 20) box.lastChild.remove();
+}
+
+// ── Screenshot / Export ───────────────────────────────────────
+async function saveScreenshot() {
+  if (!lastFrameB64) { alert('暂无画面'); return; }
+  const r = await fetch(`${API}/api/screenshot`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({frame_b64: lastFrameB64}),
+  });
+  if (r.ok) {
+    const blob = await r.blob();
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: `screenshot_${Date.now()}.jpg`,
+    });
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+}
+
+async function exportLog(fmt) {
+  const r = await fetch(`${API}/api/export/log?fmt=${fmt}`);
+  if (!r.ok) { alert('导出失败'); return; }
+  const blob = await r.blob();
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `linger_log.${fmt}`,
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+resizeDrawCanvas();
+</script>
+</body>
+</html>

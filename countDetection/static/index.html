@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>客流计数系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #050810;
+    --bg-panel: #090d1a;
+    --bg-card: #0d1525;
+    --bg-hover: #111d35;
+    --border: #1a2a45;
+    --border-glow: #0a4080;
+    --accent: #00d4ff;
+    --accent2: #00ff9d;
+    --accent3: #ff4d6d;
+    --accent-dim: rgba(0, 212, 255, 0.15);
+    --text-primary: #d0e8ff;
+    --text-secondary: #5a7a99;
+    --text-muted: #2d4560;
+    --in-color: #00ff9d;
+    --out-color: #ff4d6d;
+    --total-color: #00d4ff;
+    --mono: 'Share Tech Mono', monospace;
+    --head: 'Rajdhani', sans-serif;
+    --body: 'Noto Sans SC', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: var(--body);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 24px;
+    height: 52px;
+    background: linear-gradient(90deg, #04070f 0%, #060c1e 50%, #04070f 100%);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanline 3s linear infinite;
+  }
+  @keyframes scanline {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    border: 1.5px solid var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    box-shadow: 0 0 12px rgba(0,212,255,0.3);
+  }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .title-group { flex: 1; }
+  .main-title {
+    font-family: var(--head);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .sub-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+  }
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    transition: all 0.3s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-muted);
+    transition: all 0.3s;
+  }
+  .status-pill.running { border-color: var(--accent2); color: var(--accent2); }
+  .status-pill.running .status-dot {
+    background: var(--accent2);
+    box-shadow: 0 0 6px var(--accent2);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  .status-pill.error { border-color: var(--accent3); color: var(--accent3); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 300px;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+  .panel {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,212,255,0.05) 0%, transparent 100%);
+    flex-shrink: 0;
+  }
+  .panel-title {
+    font-family: var(--head);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* ── LEFT PANEL ── */
+  .section { margin-bottom: 20px; }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: var(--bg-card);
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    box-shadow: inset 0 0 20px rgba(0,212,255,0.1);
+  }
+  .upload-zone input { display: none; }
+  .upload-icon { font-size: 22px; margin-bottom: 6px; opacity: 0.6; }
+  .upload-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .upload-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent2);
+    margin-top: 6px;
+    word-break: break-all;
+  }
+  .upload-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-top: 4px;
+    background: rgba(0,255,157,0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(0,255,157,0.3);
+  }
+
+  /* Line config */
+  .line-config {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+  }
+  .coord-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .coord-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    width: 26px;
+    flex-shrink: 0;
+  }
+  .coord-input {
+    flex: 1;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+  }
+  .coord-input::-webkit-outer-spin-button,
+  .coord-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .coord-input:focus { border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 12px rgba(0,212,255,0.2); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; border-color: var(--border); color: var(--text-secondary); }
+  .btn-start {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(0,255,157,0.07);
+  }
+  .btn-start:hover { background: rgba(0,255,157,0.15); box-shadow: 0 0 16px rgba(0,255,157,0.25); color: var(--accent2); border-color: var(--accent2); }
+  .btn-stop {
+    border-color: var(--accent3);
+    color: var(--accent3);
+    background: rgba(255,77,109,0.07);
+  }
+  .btn-stop:hover { background: rgba(255,77,109,0.15); box-shadow: 0 0 16px rgba(255,77,109,0.25); color: var(--accent3); border-color: var(--accent3); }
+  .btn-small {
+    font-size: 11px;
+    padding: 6px;
+    margin-bottom: 0;
+    width: auto;
+    flex: 1;
+  }
+  .btn-row { display: flex; gap: 6px; }
+
+  /* ── CENTER PANEL ── */
+  .video-panel {
+    background: #020408;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .video-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  #videoCanvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .video-placeholder {
+    text-align: center;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .placeholder-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+  .placeholder-text { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+
+  /* Corner overlay */
+  .corner-tl, .corner-tr, .corner-bl, .corner-br {
+    position: absolute;
+    width: 16px; height: 16px;
+    pointer-events: none;
+  }
+  .corner-tl { top: 8px; left: 8px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); opacity: 0.5; }
+  .corner-tr { top: 8px; right: 8px; border-top: 2px solid var(--accent); border-right: 2px solid var(--accent); opacity: 0.5; }
+  .corner-bl { bottom: 8px; left: 8px; border-bottom: 2px solid var(--accent); border-left: 2px solid var(--accent); opacity: 0.5; }
+  .corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); opacity: 0.5; }
+
+  /* Stats bar */
+  .stats-bar {
+    height: 44px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 32px;
+    flex-shrink: 0;
+  }
+  .stat-item { display: flex; align-items: center; gap: 8px; }
+  .stat-label { font-family: var(--mono); font-size: 10px; color: var(--text-secondary); letter-spacing: 1px; }
+  .stat-value { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+  .stat-in .stat-value { color: var(--in-color); }
+  .stat-out .stat-value { color: var(--out-color); }
+  .stat-total .stat-value { color: var(--total-color); }
+  .stat-fps .stat-value { color: var(--text-secondary); font-size: 13px; }
+  .stat-divider { width: 1px; height: 24px; background: var(--border); }
+
+  /* ── RIGHT PANEL - LOG ── */
+  .log-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .log-stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 8px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .log-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .log-stat-card.card-in::before { background: var(--in-color); }
+  .log-stat-card.card-out::before { background: var(--out-color); }
+  .log-stat-card.card-total::before { background: var(--total-color); }
+  .card-num {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .card-in .card-num { color: var(--in-color); }
+  .card-out .card-num { color: var(--out-color); }
+  .card-total .card-num { color: var(--total-color); }
+  .card-lbl {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  /* Log entries */
+  .log-container {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(26,42,69,0.5);
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateX(8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .log-dir-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .badge-in { background: rgba(0,255,157,0.2); color: var(--in-color); border: 1px solid rgba(0,255,157,0.4); }
+  .badge-out { background: rgba(255,77,109,0.2); color: var(--out-color); border: 1px solid rgba(255,77,109,0.4); }
+  .badge-sys { background: rgba(0,212,255,0.12); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .log-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    flex: 1;
+  }
+  .log-text strong { color: var(--text-primary); }
+  .log-time {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    margin-top: 8px;
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%;
+    transition: width 0.5s ease;
+    border-radius: 1px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    z-index: 9999;
+  }
+
+  /* Upload progress */
+  .upload-progress {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    display: none;
+  }
+  .upload-progress.show { display: block; }
+
+  /* Line preview in video */
+  #lineOverlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* Tooltip style info */
+  .info-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent)">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+  </div>
+  <div class="title-group">
+    <div class="main-title">客流计数系统</div>
+    <div class="sub-title">PEDESTRIAN FLOW COUNTER · YOLOV8 + BYTETRACK · ONNX</div>
+  </div>
+  <div class="status-pill" id="statusPill">
+    <div class="status-dot"></div>
+    <span id="statusText">IDLE</span>
+  </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+
+  <!-- LEFT: DATA INPUT -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">📂 数据输入</div>
+    </div>
+    <div class="panel-body">
+
+      <!-- Video upload -->
+      <div class="section">
+        <div class="section-label">📹 视频文件</div>
+        <div class="upload-zone" id="videoZone" onclick="document.getElementById('videoInput').click()">
+          <input type="file" id="videoInput" accept=".mp4,.avi,.flv,.mov,.mkv,.wmv,.ts,.m4v" onchange="uploadVideo(this)">
+          <div class="upload-icon">🎬</div>
+          <div class="upload-text">点击或拖拽上传视频<br><span style="font-size:10px;opacity:0.6">支持 MP4 · AVI · FLV · MOV · MKV</span></div>
+          <div class="upload-name" id="videoName"></div>
+          <div class="upload-progress" id="videoProgress">正在上传...</div>
+        </div>
+      </div>
+
+      <!-- Model upload -->
+      <div class="section">
+        <div class="section-label">🧠 ONNX 模型</div>
+        <div class="upload-zone" id="modelZone" onclick="document.getElementById('modelInput').click()">
+          <input type="file" id="modelInput" accept=".onnx" onchange="uploadModel(this)">
+          <div class="upload-icon">⚙️</div>
+          <div class="upload-text">点击上传 YOLOv8s.onnx<br><span style="font-size:10px;opacity:0.6">YOLOv8s 预训练权重</span></div>
+          <div class="upload-name" id="modelName"></div>
+          <div class="upload-progress" id="modelProgress">正在加载模型...</div>
+        </div>
+      </div>
+
+      <!-- Counting line config -->
+      <div class="section">
+        <div class="section-label">📏 计数线设置 (相对坐标 0~1)</div>
+        <div class="line-config">
+          <div class="coord-row">
+            <span class="coord-label">起点</span>
+            <input class="coord-input" type="number" id="lx1" value="0.1" min="0" max="1" step="0.05" placeholder="X">
+            <input class="coord-input" type="number" id="ly1" value="0.5" min="0" max="1" step="0.05" placeholder="Y">
+          </div>
+          <div class="coord-row">
+            <span class="coord-label">终点</span>
+            <input class="coord-input" type="number" id="lx2" value="0.9" min="0" max="1" step="0.05" placeholder="X">
+            <input class="coord-input" type="number" id="ly2" value="0.5" min="0" max="1" step="0.05" placeholder="Y">
+          </div>
+          <button class="btn btn-small" onclick="updateLine()">↺ 更新计数线</button>
+          <div class="info-hint" style="margin-top:6px">线左侧穿越=进，右侧穿越=出</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="section">
+        <div class="section-label">⚡ 检测控制</div>
+        <button class="btn btn-start" id="btnStart" onclick="startDetection()" disabled>
+          ▶ 开始检测
+        </button>
+        <div class="btn-row">
+          <button class="btn btn-small" id="btnPause" onclick="pauseDetection()" disabled>⏸ 暂停</button>
+          <button class="btn btn-small" id="btnResume" onclick="resumeDetection()" disabled>▶ 继续</button>
+        </div>
+        <button class="btn btn-stop" id="btnStop" onclick="stopDetection()" disabled style="margin-top:8px">
+          ■ 停止检测
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CENTER: VIDEO -->
+  <div class="video-panel">
+    <div class="video-area" id="videoArea">
+      <div class="corner-tl"></div>
+      <div class="corner-tr"></div>
+      <div class="corner-bl"></div>
+      <div class="corner-br"></div>
+      <img id="videoCanvas" alt="video" style="display:none; max-width:100%; max-height:100%;">
+      <div class="video-placeholder" id="videoPlaceholder">
+        <div class="placeholder-icon">📡</div>
+        <div class="placeholder-text">等待视频流 · WAITING FOR STREAM</div>
+      </div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-item stat-in">
+        <span class="stat-label">进入 IN</span>
+        <span class="stat-value" id="statIn">0</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item stat-out">
+        <span class="stat-label">离开 OUT</span>
+        <span class="stat-value" id="statOut">0</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item stat-total">
+        <span class="stat-label">总计 TOTAL</span>
+        <span class="stat-value" id="statTotal">0</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item stat-fps">
+        <span class="stat-label">FPS</span>
+        <span class="stat-value" id="statFps">--</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item stat-fps">
+        <span class="stat-label">FRAME</span>
+        <span class="stat-value" id="statFrame">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: LOG -->
+  <div class="panel" style="border-left:1px solid var(--border); border-right:none;">
+    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="panel-title">📊 客流日志</div>
+      <button class="btn btn-small" style="width:auto;margin:0;font-size:9px;padding:3px 8px;" onclick="clearLog()">清空</button>
+    </div>
+    <div class="panel-body" style="display:flex;flex-direction:column;gap:0;padding:12px;">
+      <!-- Stats cards -->
+      <div class="log-stats">
+        <div class="log-stat-card card-in">
+          <div class="card-num" id="cardIn">0</div>
+          <div class="card-lbl">进入</div>
+        </div>
+        <div class="log-stat-card card-out">
+          <div class="card-num" id="cardOut">0</div>
+          <div class="card-lbl">离开</div>
+        </div>
+        <div class="log-stat-card card-total">
+          <div class="card-num" id="cardTotal">0</div>
+          <div class="card-lbl">总计</div>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+      <div style="margin: 10px 0 6px; font-family:var(--mono); font-size:9px; color:var(--text-muted); letter-spacing:1px;">事件记录 · EVENT LOG</div>
+
+      <!-- Log entries -->
+      <div class="log-container" id="logContainer"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────────────────────────────────────
+let ws = null;
+let videoReady = false;
+let modelReady = false;
+let isRunning = false;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// WebSocket
+// ──────────────────────────────────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/stream`);
+
+  ws.onopen = () => {
+    addLog('sys', 'CONN', 'WebSocket 已连接');
+    // Keepalive
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 20000);
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleMessage(msg);
+  };
+
+  ws.onclose = () => {
+    addLog('sys', 'WARN', 'WebSocket 断开，5秒后重连...');
+    setTimeout(connectWS, 5000);
+  };
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'frame') {
+    const img = document.getElementById('videoCanvas');
+    img.src = 'data:image/jpeg;base64,' + msg.data;
+    img.style.display = 'block';
+    document.getElementById('videoPlaceholder').style.display = 'none';
+    updateStats(msg.stats);
+  } else if (msg.type === 'event') {
+    handleEvent(msg.data);
+  } else if (msg.type === 'state') {
+    onStateChange(msg.state);
+  }
+}
+
+function handleEvent(ev) {
+  if (ev.type === 'crossing') {
+    const dir = ev.direction === 'in' ? 'in' : 'out';
+    addLog(dir, ev.direction === 'in' ? 'IN ▶' : '◀ OUT',
+      `Track #${ev.track_id} 穿越计数线 | 当前: 进${ev.count_in} 出${ev.count_out}`);
+    updateCards(ev.count_in, ev.count_out);
+  } else if (ev.type === 'video_end') {
+    addLog('sys', 'DONE', `视频处理完成 · 进:${ev.summary.in} 出:${ev.summary.out} 总:${ev.summary.total}`);
+    onStateChange('stopped');
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Upload
+// ──────────────────────────────────────────────────────────────────────────────
+async function uploadVideo(input) {
+  if (!input.files.length) return;
+  const file = input.files[0];
+  const fd = new FormData();
+  fd.append('file', file);
+  document.getElementById('videoProgress').classList.add('show');
+  document.getElementById('videoName').textContent = '';
+  try {
+    const r = await fetch('/api/upload/video', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Upload failed');
+    videoReady = true;
+    document.getElementById('videoName').textContent = file.name;
+    document.getElementById('videoZone').querySelector('.upload-text').innerHTML =
+      `<span class="upload-badge">✓ 视频已就绪</span>`;
+    const info = data.info;
+    addLog('sys', 'VIDEO',
+      `${file.name} · ${info.width}×${info.height} · ${info.fps.toFixed(1)}fps · ${info.total_frames}帧`);
+    // Show first frame preview immediately
+    if (info.first_frame) {
+      const img = document.getElementById('videoCanvas');
+      img.src = 'data:image/jpeg;base64,' + info.first_frame;
+      img.style.display = 'block';
+      document.getElementById('videoPlaceholder').style.display = 'none';
+    }
+    updateStartButton();
+  } catch (err) {
+    addLog('sys', 'ERR', `视频上传失败: ${err.message}`);
+  } finally {
+    document.getElementById('videoProgress').classList.remove('show');
+  }
+}
+
+async function uploadModel(input) {
+  if (!input.files.length) return;
+  const file = input.files[0];
+  const fd = new FormData();
+  fd.append('file', file);
+  document.getElementById('modelProgress').classList.add('show');
+  document.getElementById('modelName').textContent = '';
+  addLog('sys', 'MODEL', '正在加载 ONNX 模型，请稍候...');
+  try {
+    const r = await fetch('/api/upload/model', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Upload failed');
+    modelReady = true;
+    document.getElementById('modelName').textContent = file.name;
+    document.getElementById('modelZone').querySelector('.upload-text').innerHTML =
+      `<span class="upload-badge">✓ 模型已加载</span>`;
+    addLog('sys', 'MODEL', `YOLOv8 ONNX 已就绪 · ${file.name}`);
+    updateStartButton();
+  } catch (err) {
+    addLog('sys', 'ERR', `模型加载失败: ${err.message}`);
+  } finally {
+    document.getElementById('modelProgress').classList.remove('show');
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Pipeline control
+// ──────────────────────────────────────────────────────────────────────────────
+async function updateLine() {
+  const x1 = parseFloat(document.getElementById('lx1').value);
+  const y1 = parseFloat(document.getElementById('ly1').value);
+  const x2 = parseFloat(document.getElementById('lx2').value);
+  const y2 = parseFloat(document.getElementById('ly2').value);
+  await fetch('/api/pipeline/line', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ x1, y1, x2, y2 }),
+  });
+  addLog('sys', 'LINE', `计数线更新 (${x1},${y1})→(${x2},${y2})`);
+}
+
+async function startDetection() {
+  await updateLine();
+  const r = await fetch('/api/pipeline/start', { method: 'POST' });
+  if (!r.ok) {
+    const d = await r.json();
+    addLog('sys', 'ERR', d.detail);
+    return;
+  }
+  addLog('sys', 'START', '检测任务已启动 · ByteTrack + LineCounter');
+}
+
+async function stopDetection() {
+  await fetch('/api/pipeline/stop', { method: 'POST' });
+  addLog('sys', 'STOP', '检测任务已停止');
+}
+
+async function pauseDetection() {
+  await fetch('/api/pipeline/pause', { method: 'POST' });
+}
+
+async function resumeDetection() {
+  await fetch('/api/pipeline/resume', { method: 'POST' });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// State UI
+// ──────────────────────────────────────────────────────────────────────────────
+function onStateChange(state) {
+  const pill = document.getElementById('statusPill');
+  const text = document.getElementById('statusText');
+  pill.className = 'status-pill ' + state;
+  text.textContent = state.toUpperCase();
+  isRunning = state === 'running';
+
+  document.getElementById('btnStart').disabled = isRunning || state === 'paused';
+  document.getElementById('btnStop').disabled = !isRunning && state !== 'paused';
+  document.getElementById('btnPause').disabled = !isRunning;
+  document.getElementById('btnResume').disabled = state !== 'paused';
+
+  if (state === 'stopped' || state === 'idle') {
+    document.getElementById('videoCanvas').style.display = 'none';
+    document.getElementById('videoPlaceholder').style.display = 'flex';
+    document.getElementById('progressFill').style.width = '100%';
+    setTimeout(() => document.getElementById('progressFill').style.width = '0%', 1000);
+  }
+}
+
+function updateStartButton() {
+  document.getElementById('btnStart').disabled = !(videoReady && modelReady);
+}
+
+function updateStats(stats) {
+  document.getElementById('statIn').textContent = stats.count_in;
+  document.getElementById('statOut').textContent = stats.count_out;
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statFps').textContent = stats.fps;
+  document.getElementById('statFrame').textContent = stats.frame;
+  updateCards(stats.count_in, stats.count_out);
+}
+
+function updateCards(countIn, countOut) {
+  document.getElementById('cardIn').textContent = countIn;
+  document.getElementById('cardOut').textContent = countOut;
+  document.getElementById('cardTotal').textContent = countIn + countOut;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Log
+// ──────────────────────────────────────────────────────────────────────────────
+let logCount = 0;
+function addLog(type, badge, text) {
+  logCount++;
+  const now = new Date();
+  const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <span class="log-dir-badge badge-${type === 'in' ? 'in' : type === 'out' ? 'out' : 'sys'}">${badge}</span>
+    <span class="log-text">${text}</span>
+    <span class="log-time">${ts}</span>
+  `;
+
+  const container = document.getElementById('logContainer');
+  container.insertBefore(entry, container.firstChild);
+
+  // Keep max 200 entries
+  while (container.children.length > 200) {
+    container.removeChild(container.lastChild);
+  }
+}
+
+function clearLog() {
+  document.getElementById('logContainer').innerHTML = '';
+  logCount = 0;
+  addLog('sys', 'SYS', '日志已清空');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Drag and drop
+// ──────────────────────────────────────────────────────────────────────────────
+function setupDrop(zoneId, handler) {
+  const zone = document.getElementById(zoneId);
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const input = zone.querySelector('input[type=file]');
+      input.files = dt.files;
+      handler(input);
+    }
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Init
+// ──────────────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  connectWS();
+  setupDrop('videoZone', uploadVideo);
+  setupDrop('modelZone', uploadModel);
+  addLog('sys', 'SYS', '客流计数系统就绪 · YOLOv8 + ByteTrack + LineCounter');
+  addLog('sys', 'SYS', '请上传视频和 ONNX 模型以开始检测');
+
+  // Poll status periodically
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/pipeline/status');
+      const s = await r.json();
+      if (s.state && s.state !== (isRunning ? 'running' : 'idle')) {
+        // sync state
+      }
+    } catch (e) {}
+  }, 5000);
+});
+</script>
+</body>
+</html>

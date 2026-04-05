@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>区域入侵检测系统</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050a0f;
+  --panel: #090f18;
+  --panel2: #0c1520;
+  --border: #1a2d45;
+  --border2: #0f1f33;
+  --accent: #00c8ff;
+  --accent2: #0075ff;
+  --danger: #ff3a4a;
+  --warn: #ff8c00;
+  --success: #00e676;
+  --text: #cde4f8;
+  --text2: #6a8faa;
+  --text3: #3a6080;
+  --mono: 'Share Tech Mono', monospace;
+  --ui: 'Rajdhani', sans-serif;
+  --cn: 'Noto Sans SC', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--cn);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(0,120,200,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(0,200,255,0.03) 0%, transparent 50%);
+}
+
+/* ── Header ── */
+.header {
+  flex: 0 0 52px;
+  background: linear-gradient(90deg, #060e1c 0%, #0a1828 50%, #060e1c 100%);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+.header-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.header-title {
+  font-family: var(--ui);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(0,200,255,0.4);
+}
+.header-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  margin-left: auto;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: all 0.3s;
+}
+.status-dot.active { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 1.5s infinite; }
+.status-dot.alert { background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: pulse 0.5s infinite; }
+
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* ── Main Layout ── */
+.main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* ── Panel Base ── */
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border2);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.section {
+  border-bottom: 1px solid var(--border2);
+  padding: 14px 14px 12px;
+}
+.section-title {
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title::before {
+  content: '';
+  width: 3px; height: 12px;
+  background: var(--accent);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ── */
+.btn {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border: 1px solid;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn-primary {
+  border-color: var(--accent2);
+  color: var(--accent);
+  background: rgba(0,117,255,0.08);
+}
+.btn-primary:hover { background: rgba(0,117,255,0.2); box-shadow: 0 0 12px rgba(0,117,255,0.3); }
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255,58,74,0.08);
+}
+.btn-danger:hover { background: rgba(255,58,74,0.2); }
+.btn-success {
+  border-color: var(--success);
+  color: var(--success);
+  background: rgba(0,230,118,0.08);
+}
+.btn-success:hover { background: rgba(0,230,118,0.2); }
+.btn-warn {
+  border-color: var(--warn);
+  color: var(--warn);
+  background: rgba(255,140,0,0.08);
+}
+.btn-warn:hover { background: rgba(255,140,0,0.2); }
+.btn-sm { padding: 5px 10px; font-size: 10px; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-full { width: 100%; justify-content: center; }
+
+/* ── File Input ── */
+.file-zone {
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.file-zone:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.03); }
+.file-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.file-zone .file-name { font-family: var(--mono); font-size: 10px; color: var(--success); margin-top: 4px; display: none; }
+
+/* ── Sliders ── */
+.slider-row {
+  margin-bottom: 10px;
+}
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 5px;
+  font-family: var(--mono);
+}
+.slider-label span:last-child { color: var(--accent); }
+input[type=range] {
+  width: 100%;
+  height: 3px;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent2);
+  border: 2px solid var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(0,200,255,0.5);
+}
+
+/* ── Toggles ── */
+.toggle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text2);
+  cursor: pointer;
+}
+.toggle-item input { display: none; }
+.toggle-switch {
+  width: 28px; height: 14px;
+  border-radius: 7px;
+  background: var(--border);
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text3);
+  top: 2px; left: 2px;
+  transition: all 0.2s;
+}
+.toggle-item input:checked + .toggle-switch { background: rgba(0,117,255,0.4); }
+.toggle-item input:checked + .toggle-switch::after { background: var(--accent); left: 16px; box-shadow: 0 0 6px var(--accent); }
+
+/* ── Alert Banner ── */
+.alert-banner {
+  background: rgba(255,58,74,0.1);
+  border: 1px solid rgba(255,58,74,0.3);
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--danger);
+  display: none;
+  animation: alertBlink 0.5s ease infinite alternate;
+}
+.alert-banner.visible { display: block; }
+@keyframes alertBlink { from { border-color: rgba(255,58,74,0.3); } to { border-color: var(--danger); } }
+.alert-list { max-height: 100px; overflow-y: auto; font-family: var(--mono); font-size: 10px; margin-top: 6px; }
+.alert-item { padding: 2px 0; border-bottom: 1px solid rgba(255,58,74,0.15); }
+
+/* ── Center Panel ── */
+.center-panel {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border2);
+}
+
+/* ── Video Area ── */
+.video-area {
+  flex: 0 0 auto;
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.video-canvas-wrap {
+  position: relative;
+  width: 100%;
+}
+#videoCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 55vh;
+  object-fit: contain;
+}
+#drawCanvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+.video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text3);
+  font-size: 13px;
+  gap: 12px;
+}
+.video-placeholder svg { opacity: 0.3; }
+
+/* ── Drawing Controls ── */
+.draw-controls {
+  position: absolute;
+  top: 8px; right: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 10;
+}
+
+/* ── Table Area ── */
+.table-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-top: 1px solid var(--border2);
+}
+.table-title {
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-y: auto;
+  flex: 1;
+}
+.data-table th {
+  background: var(--panel2);
+  color: var(--text2);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  letter-spacing: 1px;
+  font-family: var(--ui);
+  font-size: 10px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.data-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border2);
+  color: var(--text);
+}
+.data-table tr:hover td { background: rgba(0,200,255,0.04); }
+.data-table tr.intruder td { color: #ff8888; }
+.data-table tr.intruder td:first-child { border-left: 2px solid var(--danger); }
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-family: var(--ui);
+  letter-spacing: 1px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.badge-danger { background: rgba(255,58,74,0.2); color: var(--danger); border: 1px solid rgba(255,58,74,0.3); }
+.badge-ok { background: rgba(0,230,118,0.15); color: var(--success); border: 1px solid rgba(0,230,118,0.2); }
+.snap-thumb {
+  width: 36px; height: 36px;
+  object-fit: cover;
+  border-radius: 2px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+/* ── Right Panel ── */
+.right-panel {
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Intrusion Gallery ── */
+.gallery-area {
+  flex: 0 0 260px;
+  border-bottom: 1px solid var(--border2);
+  padding: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.gallery-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 2px;
+}
+.gallery-grid::-webkit-scrollbar { width: 3px; }
+.gallery-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.gallery-card {
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+  padding: 4px;
+}
+.gallery-card:hover { border-color: var(--danger); background: rgba(255,58,74,0.05); }
+.gallery-card img { width: 52px; height: 52px; object-fit: cover; border-radius: 2px; flex-shrink: 0; display: block; }
+.gallery-card-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--danger);
+  line-height: 1.5;
+  overflow: hidden;
+}
+.gallery-card-label .gc-zone {
+  font-size: 9px;
+  color: var(--text3);
+  display: block;
+}
+
+/* ── Log Area ── */
+.log-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+.log-list {
+  flex: 1;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.log-list::-webkit-scrollbar { width: 3px; }
+.log-list::-webkit-scrollbar-thumb { background: var(--border); }
+.log-entry {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border2);
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
+.log-time { color: var(--text3); white-space: nowrap; }
+.log-msg { color: var(--text); }
+.log-msg .log-id { color: var(--accent); }
+.log-msg .log-zone { color: var(--warn); }
+.log-msg .log-intruder { color: var(--danger); font-weight: 600; }
+
+/* ── Ops Grid ── */
+.ops-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* ── Zone Drawing overlay feedback ── */
+.zone-list { margin-top: 8px; }
+.zone-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  background: var(--panel2);
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.zone-color { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.zone-del { margin-left: auto; cursor: pointer; color: var(--danger); font-size: 14px; line-height: 1; }
+
+/* ── Scanning line effect on video ── */
+.scan-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,200,255,0.6), transparent);
+  pointer-events: none;
+  animation: scanDown 3s linear infinite;
+  display: none;
+}
+.scan-line.active { display: block; }
+@keyframes scanDown { from { top: 0; } to { top: 100%; } }
+
+/* ── Corner decorations ── */
+.corner-tl, .corner-br {
+  position: absolute;
+  width: 16px; height: 16px;
+  pointer-events: none;
+}
+.corner-tl { top: 4px; left: 4px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+.corner-br { bottom: 4px; right: 4px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+
+/* ── Stat strip ── */
+.stat-strip {
+  display: flex;
+  gap: 16px;
+  padding: 6px 10px;
+  background: var(--panel2);
+  border-top: 1px solid var(--border2);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+.stat-val { color: var(--accent); }
+.stat-danger { color: var(--danger); }
+
+/* ── Scrollable table wrapper ── */
+.table-scroll { flex: 1; overflow-y: auto; }
+
+/* ── Modal ── */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.modal.open { display: flex; }
+.modal-img { max-width: 80vw; max-height: 80vh; border: 2px solid var(--accent); border-radius: 4px; }
+.modal-close { position: absolute; top: 20px; right: 20px; color: var(--text); font-size: 28px; cursor: pointer; }
+
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-icon">⬡</div>
+  <div class="header-title">区域入侵检测系统</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+    <div id="statusDot" class="status-dot"></div>
+    <span id="statusText" class="header-sub" style="margin-left:0">SYS OFFLINE</span>
+  </div>
+  <div class="header-sub">INTRUSION DETECTION v1.0 | YOLOv8s + ByteTrack</div>
+</header>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- ══ LEFT PANEL ══ -->
+  <div class="panel" id="leftPanel">
+
+    <!-- §1 数据输入 -->
+    <div class="section">
+      <div class="section-title">数据输入</div>
+
+      <div class="file-zone" id="videoZone">
+        <input type="file" id="videoInput" accept="video/*,.flv,.avi,.mkv,.mov,.wmv,.ts,.m4v,.rmvb,.3gp" onchange="uploadVideo(this)">
+        <div>▶ 选择视频文件</div>
+        <div class="file-name" id="videoName"></div>
+      </div>
+
+      <div class="file-zone" id="modelZone">
+        <input type="file" id="modelInput" accept=".onnx" onchange="uploadModel(this)">
+        <div>⬡ 导入 ONNX 模型</div>
+        <div class="file-name" id="modelName"></div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">区域绘制</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="startDrawZone()">✏ 绘制区域</button>
+          <button class="btn btn-warn btn-sm" onclick="finishZone()">✓ 完成</button>
+          <button class="btn btn-danger btn-sm" onclick="clearZones()">✕ 清除</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:5px;font-family:var(--mono)">
+          点击画布依次定点，完成后点击"完成"
+        </div>
+        <div class="zone-list" id="zoneList"></div>
+      </div>
+    </div>
+
+    <!-- §2 参数配置 -->
+    <div class="section">
+      <div class="section-title">参数配置</div>
+
+      <div class="slider-row">
+        <div class="slider-label"><span>置信度阈值</span><span id="confVal">0.45</span></div>
+        <input type="range" min="0.1" max="0.95" step="0.05" value="0.45"
+               oninput="updateSlider('conf',this.value)">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>最小目标面积 (px²)</span><span id="areaVal">1000</span></div>
+        <input type="range" min="100" max="10000" step="100" value="1000"
+               oninput="updateSlider('area',this.value)">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>入侵判定帧数 N</span><span id="framesVal">3</span></div>
+        <input type="range" min="1" max="20" step="1" value="3"
+               oninput="updateSlider('frames',this.value)">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>NMS IOU 阈值</span><span id="iouVal">0.45</span></div>
+        <input type="range" min="0.1" max="0.9" step="0.05" value="0.45"
+               oninput="updateSlider('iou',this.value)">
+      </div>
+    </div>
+
+    <!-- §3 告警配置 -->
+    <div class="section">
+      <div class="section-title">告警设置</div>
+      <label class="toggle-item" style="margin-bottom:10px;">
+        <input type="checkbox" id="alertEnabled" checked onchange="toggleAlert(this)">
+        <div class="toggle-switch"></div>
+        <span>启用入侵告警提醒</span>
+      </label>
+      <div class="alert-banner" id="alertBanner">
+        <div style="font-weight:600;letter-spacing:2px;">⚠ 入侵告警</div>
+        <div class="alert-list" id="alertList"></div>
+      </div>
+    </div>
+
+    <!-- §4 操作区 -->
+    <div class="section">
+      <div class="section-title">显示控制</div>
+      <div class="toggle-grid" id="displayToggles">
+        <label class="toggle-item"><input type="checkbox" checked onchange="toggleDisplay('show_track_id',this.checked)"><div class="toggle-switch"></div><span>Track ID</span></label>
+        <label class="toggle-item"><input type="checkbox" checked onchange="toggleDisplay('show_class',this.checked)"><div class="toggle-switch"></div><span>类别名称</span></label>
+        <label class="toggle-item"><input type="checkbox" checked onchange="toggleDisplay('show_confidence',this.checked)"><div class="toggle-switch"></div><span>置信度</span></label>
+        <label class="toggle-item"><input type="checkbox" checked onchange="toggleDisplay('show_trajectory',this.checked)"><div class="toggle-switch"></div><span>跟踪轨迹</span></label>
+        <label class="toggle-item"><input type="checkbox" checked onchange="toggleDisplay('show_centroid',this.checked)"><div class="toggle-switch"></div><span>中心点</span></label>
+        <label class="toggle-item"><input type="checkbox" checked onchange="toggleDisplay('show_intrusion_count',this.checked)"><div class="toggle-switch"></div><span>入侵总数</span></label>
+      </div>
+
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px;">
+        <div class="ops-grid">
+          <button class="btn btn-success" id="startBtn" onclick="startDetect()">▶ 开始检测</button>
+          <button class="btn btn-danger" id="stopBtn" onclick="stopDetect()" disabled>■ 停止检测</button>
+        </div>
+        <div class="ops-grid">
+          <button class="btn btn-primary btn-sm" onclick="captureFrame()">📷 保存画面</button>
+          <button class="btn btn-warn btn-sm" onclick="exportData()">⬇ 导出数据</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- ══ CENTER PANEL ══ -->
+  <div class="center-panel">
+
+    <!-- Video -->
+    <div class="video-area" id="videoArea">
+      <div class="video-placeholder" id="videoPlaceholder">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="12" width="56" height="40" rx="4" stroke="#6a8faa" stroke-width="2"/>
+          <polygon points="26,22 26,42 44,32" fill="#6a8faa"/>
+        </svg>
+        <span>请先导入视频文件</span>
+      </div>
+      <div class="video-canvas-wrap" id="canvasWrap" style="display:none;">
+        <img id="videoCanvas" alt="视频帧">
+        <canvas id="drawCanvas"></canvas>
+        <div class="scan-line" id="scanLine"></div>
+        <div class="draw-controls" id="drawControls" style="display:none;">
+          <button class="btn btn-warn btn-sm" onclick="finishZone()">✓ 完成区域</button>
+          <button class="btn btn-danger btn-sm" onclick="cancelDraw()">✕ 取消</button>
+        </div>
+        <div class="corner-tl"></div>
+        <div class="corner-br"></div>
+      </div>
+    </div>
+
+    <!-- Stat strip -->
+    <div class="stat-strip">
+      <span>FPS: <span class="stat-val" id="statFps">--</span></span>
+      <span>目标: <span class="stat-val" id="statTargets">0</span></span>
+      <span>入侵: <span class="stat-danger" id="statIntrusions">0</span></span>
+      <span>区域: <span class="stat-val" id="statZones">0</span></span>
+      <span style="margin-left:auto;font-size:9px;" id="statTime">--:--:--</span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-area">
+      <div class="table-title">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;"></span>
+        实时检测结果
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="trackTable">
+          <thead>
+            <tr>
+              <th>Track ID</th>
+              <th>置信度</th>
+              <th>类别</th>
+              <th>区域坐标</th>
+              <th>状态</th>
+              <th>入侵区域</th>
+              <th>抓拍</th>
+            </tr>
+          </thead>
+          <tbody id="trackBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /center -->
+
+  <!-- ══ RIGHT PANEL ══ -->
+  <div class="right-panel">
+
+    <!-- Gallery -->
+    <div class="gallery-area">
+      <div class="section-title" style="margin-bottom:8px;">入侵人员图像</div>
+      <div class="gallery-grid" id="gallery">
+        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:20px 0;">暂无入侵记录</div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="log-area">
+      <div class="section-title" style="margin-bottom:8px;">
+        入侵日志
+        <button class="btn btn-sm" style="margin-left:auto;border-color:var(--text3);color:var(--text3);font-size:9px;" onclick="clearLog()">清空</button>
+      </div>
+      <div class="log-list" id="logList">
+        <div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 0;">等待检测数据…</div>
+      </div>
+    </div>
+
+  </div><!-- /right -->
+
+</div><!-- /main -->
+
+<!-- Image Modal -->
+<div class="modal" id="imgModal" onclick="closeModal()">
+  <span class="modal-close" onclick="closeModal()">×</span>
+  <img class="modal-img" id="modalImg">
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+const API = '';  // same origin
+let ws = null;
+let config = {
+  confidence_threshold: 0.45,
+  min_area: 1000,
+  intrusion_frames: 3,
+  iou_threshold: 0.45,
+  show_track_id: true,
+  show_class: true,
+  show_confidence: true,
+  show_trajectory: true,
+  show_centroid: true,
+  show_intrusion_count: true,
+  alert_enabled: true,
+  zones: []
+};
+let zones = [];
+let drawingZone = false;
+let currentPoints = [];
+let zoneColors = ['#FF4444','#FF8C00','#00E676','#00C8FF','#AA00FF','#FF4081'];
+let zoneIdCounter = 1;
+let fpsTimer = null;
+let lastFrameTime = Date.now();
+let fps = 0;
+let isRunning = false;
+let snapshots = {};  // eventId → base64
+
+// ─────────────────────────────────────────────
+// Clock
+// ─────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('statTime').textContent = new Date().toLocaleTimeString('zh-CN');
+}, 1000);
+
+// ─────────────────────────────────────────────
+// Upload Video
+// ─────────────────────────────────────────────
+async function uploadVideo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch('/api/upload/video', { method: 'POST', body: fd });
+  const d = await r.json();
+  if (!r.ok) {
+    alert('视频上传失败: ' + (d.detail || '未知错误'));
+    addLog('ERR', '视频上传失败: ' + (d.detail || ''), 'error');
+    return;
+  }
+  if (d.success) {
+    document.getElementById('videoName').textContent = file.name;
+    document.getElementById('videoName').style.display = 'block';
+    document.getElementById('videoZone').style.borderColor = 'var(--success)';
+    // Show thumbnail
+    if (d.thumbnail) {
+      showFrame(d.thumbnail);
+    }
+    addLog('SYS', `视频已载入: ${file.name} (${d.width}×${d.height} @${d.fps.toFixed(1)}fps)`, 'info');
+  }
+}
+
+// ─────────────────────────────────────────────
+// Upload Model
+// ─────────────────────────────────────────────
+async function uploadModel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  addLog('SYS', `正在加载模型: ${file.name}…`, 'info');
+  const r = await fetch('/api/upload/model', { method: 'POST', body: fd });
+  const d = await r.json();
+  if (d.success) {
+    document.getElementById('modelName').textContent = file.name;
+    document.getElementById('modelName').style.display = 'block';
+    document.getElementById('modelZone').style.borderColor = 'var(--success)';
+    addLog('SYS', `模型加载成功: ${file.name}`, 'info');
+  } else {
+    addLog('ERR', d.detail, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// Slider updates
+// ─────────────────────────────────────────────
+function updateSlider(key, value) {
+  const keyMap = { conf: 'confidence_threshold', area: 'min_area', frames: 'intrusion_frames', iou: 'iou_threshold' };
+  const displayKey = { conf: 'confVal', area: 'areaVal', frames: 'framesVal', iou: 'iouVal' };
+  config[keyMap[key]] = parseFloat(value);
+  document.getElementById(displayKey[key]).textContent = value;
+}
+
+function toggleDisplay(key, val) {
+  config[key] = val;
+}
+
+function toggleAlert(el) {
+  config.alert_enabled = el.checked;
+}
+
+// ─────────────────────────────────────────────
+// Zone Drawing
+// ─────────────────────────────────────────────
+function startDrawZone() {
+  const canvasWrap = document.getElementById('canvasWrap');
+  if (canvasWrap.style.display === 'none') { alert('请先导入视频'); return; }
+  drawingZone = true;
+  currentPoints = [];
+  document.getElementById('drawControls').style.display = 'flex';
+  document.getElementById('drawCanvas').style.cursor = 'crosshair';
+}
+
+function cancelDraw() {
+  drawingZone = false;
+  currentPoints = [];
+  document.getElementById('drawControls').style.display = 'none';
+  redrawCanvas();
+}
+
+function finishZone() {
+  if (currentPoints.length < 3) { alert('请至少点击3个点'); return; }
+  const color = zoneColors[(zones.length) % zoneColors.length];
+  const zone = {
+    id: zoneIdCounter++,
+    name: `区域-${zones.length + 1}`,
+    points: [...currentPoints],
+    color
+  };
+  zones.push(zone);
+  config.zones = zones;
+  currentPoints = [];
+  drawingZone = false;
+  document.getElementById('drawControls').style.display = 'none';
+  document.getElementById('statZones').textContent = zones.length;
+  renderZoneList();
+  redrawCanvas();
+  syncConfig();
+}
+
+function clearZones() {
+  zones = [];
+  config.zones = [];
+  zoneIdCounter = 1;
+  document.getElementById('statZones').textContent = 0;
+  renderZoneList();
+  redrawCanvas();
+  syncConfig();
+}
+
+function renderZoneList() {
+  const el = document.getElementById('zoneList');
+  el.innerHTML = zones.map((z, i) => `
+    <div class="zone-item">
+      <div class="zone-color" style="background:${z.color}"></div>
+      <span>${z.name}</span>
+      <span style="margin-left:auto;font-size:9px;color:var(--text3)">${z.points.length}点</span>
+      <span class="zone-del" onclick="deleteZone(${i})">×</span>
+    </div>
+  `).join('');
+}
+
+function deleteZone(i) {
+  zones.splice(i, 1);
+  config.zones = zones;
+  document.getElementById('statZones').textContent = zones.length;
+  renderZoneList();
+  redrawCanvas();
+  syncConfig();
+}
+
+// Canvas drawing
+const drawCanvas = document.getElementById('drawCanvas');
+const ctx = drawCanvas.getContext('2d');
+
+drawCanvas.addEventListener('click', (e) => {
+  if (!drawingZone) return;
+  const rect = drawCanvas.getBoundingClientRect();
+  const scaleX = drawCanvas.width / rect.width;
+  const scaleY = drawCanvas.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  currentPoints.push([x, y]);
+  redrawCanvas();
+});
+
+function redrawCanvas() {
+  const videoImg = document.getElementById('videoCanvas');
+  drawCanvas.width = videoImg.naturalWidth || videoImg.clientWidth;
+  drawCanvas.height = videoImg.naturalHeight || videoImg.clientHeight;
+  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+  // Draw existing zones
+  zones.forEach(zone => {
+    if (zone.points.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(zone.points[0][0], zone.points[0][1]);
+    zone.points.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
+    ctx.closePath();
+    const hex = zone.color.replace('#','');
+    const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+    ctx.fillStyle = `rgba(${r},${g},${b},0.15)`;
+    ctx.fill();
+    ctx.strokeStyle = zone.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Label
+    const cx = zone.points.reduce((s,p) => s + p[0], 0) / zone.points.length;
+    const cy = zone.points.reduce((s,p) => s + p[1], 0) / zone.points.length;
+    ctx.fillStyle = zone.color;
+    ctx.font = 'bold 13px Rajdhani';
+    ctx.fillText(zone.name, cx - 25, cy);
+  });
+
+  // Draw in-progress zone
+  if (currentPoints.length > 0) {
+    ctx.beginPath();
+    ctx.moveTo(currentPoints[0][0], currentPoints[0][1]);
+    currentPoints.forEach(p => { ctx.lineTo(p[0], p[1]); });
+    ctx.strokeStyle = '#00C8FF';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    currentPoints.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 5, 0, Math.PI*2);
+      ctx.fillStyle = '#00C8FF';
+      ctx.fill();
+    });
+  }
+}
+
+// ─────────────────────────────────────────────
+// Config Sync
+// ─────────────────────────────────────────────
+async function syncConfig() {
+  await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+}
+
+// ─────────────────────────────────────────────
+// Detection Control
+// ─────────────────────────────────────────────
+async function startDetect() {
+  await syncConfig();
+  const r = await fetch('/api/detect/start', { method: 'POST' });
+  const d = await r.json();
+  if (d.success !== false) {
+    isRunning = true;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('statusDot').className = 'status-dot active';
+    document.getElementById('statusText').textContent = 'DETECTING...';
+    document.getElementById('scanLine').classList.add('active');
+    connectWS();
+    addLog('SYS', '检测任务已启动', 'info');
+  } else {
+    alert(d.detail || '启动失败');
+  }
+}
+
+async function stopDetect() {
+  await fetch('/api/detect/stop', { method: 'POST' });
+  isRunning = false;
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('statusDot').className = 'status-dot';
+  document.getElementById('statusText').textContent = 'SYS OFFLINE';
+  document.getElementById('scanLine').classList.remove('active');
+  addLog('SYS', '检测任务已停止', 'info');
+}
+
+// ─────────────────────────────────────────────
+// WebSocket
+// ─────────────────────────────────────────────
+function connectWS() {
+  if (ws) { ws.close(); }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'frame') handleFrame(msg);
+    else if (msg.type === 'stopped') stopDetect();
+  };
+
+  ws.onclose = () => {
+    if (isRunning) setTimeout(connectWS, 1000);
+  };
+}
+
+function handleFrame(msg) {
+  // FPS
+  const now = Date.now();
+  fps = Math.round(1000 / (now - lastFrameTime));
+  lastFrameTime = now;
+  document.getElementById('statFps').textContent = fps;
+
+  // Show frame
+  showFrame(msg.frame);
+
+  // Tracks table
+  updateTrackTable(msg.tracks || [], msg.snapshots || {});
+  document.getElementById('statTargets').textContent = (msg.tracks || []).length;
+  document.getElementById('statIntrusions').textContent = msg.total_intrusions || 0;
+
+  // Save snapshots
+  Object.assign(snapshots, msg.snapshots || {});
+
+  // New events
+  if (msg.new_events && msg.new_events.length > 0) {
+    msg.new_events.forEach(evt => handleNewEvent(evt, msg.snapshots || {}));
+  }
+}
+
+function showFrame(b64) {
+  document.getElementById('videoPlaceholder').style.display = 'none';
+  document.getElementById('canvasWrap').style.display = 'block';
+  document.getElementById('videoCanvas').src = 'data:image/jpeg;base64,' + b64;
+}
+
+// ─────────────────────────────────────────────
+// Track Table
+// ─────────────────────────────────────────────
+function updateTrackTable(tracks, newSnaps) {
+  const tbody = document.getElementById('trackBody');
+  tbody.innerHTML = '';
+  tracks.forEach(t => {
+    const tr = document.createElement('tr');
+    if (t.is_intruder) tr.className = 'intruder';
+    const bbox = t.bbox.map(v => Math.round(v));
+    // 使用后端实时裁剪的当前帧图像（frame_snap），不依赖历史入侵快照
+    const snapImg = t.frame_snap
+      ? `<img class="snap-thumb" src="data:image/jpeg;base64,${t.frame_snap}"
+             onclick="openModalB64('${t.frame_snap}')" title="ID:${t.track_id} 当前帧">`
+      : '—';
+    tr.innerHTML = `
+      <td>${t.track_id}</td>
+      <td>${(t.score*100).toFixed(1)}%</td>
+      <td>${t.cls}</td>
+      <td style="font-size:9px">[${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}]</td>
+      <td>${t.is_intruder ? '<span class="badge badge-danger">⚠ 入侵</span>' : '<span class="badge badge-ok">正常</span>'}</td>
+      <td>${t.intruded_zones.length > 0 ? t.intruded_zones.join(', ') : '—'}</td>
+      <td>${snapImg}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ─────────────────────────────────────────────
+// Intrusion Event
+// ─────────────────────────────────────────────
+function handleNewEvent(evt, newSnaps) {
+  // Alert banner
+  if (config.alert_enabled) {
+    const banner = document.getElementById('alertBanner');
+    banner.classList.add('visible');
+    document.getElementById('statusDot').className = 'status-dot alert';
+    const alertItem = document.createElement('div');
+    alertItem.className = 'alert-item';
+    alertItem.textContent = `[${evt.timestamp}] ID:${evt.track_id} 进入 ${evt.zone_name}`;
+    document.getElementById('alertList').prepend(alertItem);
+    setTimeout(() => {
+      document.getElementById('statusDot').className = 'status-dot active';
+    }, 3000);
+  }
+
+  // Gallery
+  const snap = newSnaps[evt.event_id] || snapshots[evt.event_id];
+  if (snap) {
+    addGalleryCard(evt, snap);
+  }
+
+  // Log
+  addLog(evt.timestamp, `<span class="log-intruder">⚠ 入侵！</span> ID:<span class="log-id">${evt.track_id}</span> → <span class="log-zone">${evt.zone_name}(#${evt.zone_id})</span> 置信度:${(evt.confidence*100).toFixed(1)}%`, 'event');
+}
+
+function addGalleryCard(evt, b64) {
+  const grid = document.getElementById('gallery');
+  // Clear placeholder
+  const placeholder = grid.querySelector('div[style]');
+  if (placeholder) placeholder.remove();
+
+  const card = document.createElement('div');
+  card.className = 'gallery-card';
+  card.onclick = () => openModalB64(b64);
+  card.innerHTML = `
+    <img src="data:image/jpeg;base64,${b64}" alt="入侵人员">
+    <div class="gallery-card-label">
+      <span>ID:${evt.track_id} &nbsp; ${(evt.confidence*100).toFixed(1)}%</span>
+      <span class="gc-zone">⚑ ${evt.zone_name}(#${evt.zone_id})</span>
+      <span class="gc-zone">${evt.timestamp.slice(11)}</span>
+    </div>
+  `;
+  grid.prepend(card);
+  // Limit gallery to 50 entries
+  while (grid.children.length > 50) grid.removeChild(grid.lastChild);
+}
+
+// ─────────────────────────────────────────────
+// Log
+// ─────────────────────────────────────────────
+function addLog(time, msg, type) {
+  const list = document.getElementById('logList');
+  // Remove placeholder
+  const p = list.querySelector('div[style]');
+  if (p) p.remove();
+
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-msg">${msg}</span>
+  `;
+  list.prepend(entry);
+  while (list.children.length > 200) list.removeChild(list.lastChild);
+}
+
+function clearLog() {
+  document.getElementById('logList').innerHTML =
+    '<div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 0;">日志已清空</div>';
+}
+
+// ─────────────────────────────────────────────
+// Actions
+// ─────────────────────────────────────────────
+async function captureFrame() {
+  const r = await fetch('/api/capture', { method: 'POST' });
+  const d = await r.json();
+  if (d.success) addLog('SYS', `画面已保存: ${d.filename}`, 'info');
+}
+
+function exportData() {
+  window.open('/api/events/export', '_blank');
+  addLog('SYS', '入侵数据已导出为 CSV', 'info');
+}
+
+// ─────────────────────────────────────────────
+// Modal
+// ─────────────────────────────────────────────
+function openModal(eventId) {
+  const snap = snapshots[eventId];
+  if (!snap) return;
+  openModalB64(snap);
+}
+function openModalB64(b64) {
+  document.getElementById('modalImg').src = 'data:image/jpeg;base64,' + b64;
+  document.getElementById('imgModal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('imgModal').classList.remove('open');
+}
+
+// ─────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────
+(async () => {
+  // Poll status
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      if (!d.running && isRunning) {
+        isRunning = false;
+        document.getElementById('statusDot').className = 'status-dot';
+        document.getElementById('statusText').textContent = 'SYS OFFLINE';
+      }
+    } catch(e) {}
+  }, 3000);
+
+  // Handle image resize for canvas
+  window.addEventListener('resize', redrawCanvas);
+  document.getElementById('videoCanvas').addEventListener('load', () => {
+    drawCanvas.width = document.getElementById('videoCanvas').naturalWidth || 640;
+    drawCanvas.height = document.getElementById('videoCanvas').naturalHeight || 360;
+    redrawCanvas();
+  });
+})();
+</script>
+</body>
+</html>
